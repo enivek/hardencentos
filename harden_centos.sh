@@ -77,31 +77,31 @@ service iptables save
 
 # secure against attacks
 iptables -F
-iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
-iptables -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
-iptables -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
 
-# allow only certain ports
-iptables -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
-iptables -A OUTPUT -p tcp -m tcp --sport 80 -j ACCEPT
-iptables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
-iptables -A OUTPUT -p tcp -m tcp --sport 443 -j ACCEPT
-iptables -A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
-iptables -A OUTPUT -p tcp -m tcp --sport 8080 -j ACCEPT
-iptables -A INPUT -p tcp -m tcp --dport 8080 -j ACCEPT
-iptables -A OUTPUT -p tcp -m tcp --sport 8443 -j ACCEPT
-iptables -A INPUT -p tcp -m tcp --dport 8443 -j ACCEPT
-iptables -A OUTPUT -p udp --sport 123 -j ACCEPT
-iptables -A INPUT -p udp --dport 123 -j ACCEPT
+# Block incoming on eth0
+iptables -A INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
+iptables -A INPUT -i eth0 -p tcp --dport 8443 -j ACCEPT
+iptables -A OUTPUT -p tcp -m tcp --dport 80 -j ACCEPT
 
-iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
-iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
+# Allow DNS
+iptables -A OUTPUT -p udp --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUT -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUT -p tcp --sport 53 -m state --state ESTABLISHED -j ACCEPT
 
-# block everything else
-iptables -P OUTPUT ACCEPT
-iptables -P INPUT DROP
+# accept outbound connections
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-iptables -L -n
+# Block incoming on eth1 (for PostgresSQL port)
+iptables -A INPUT -i eth1 -p tcp --dport 5432 -j ACCEPT
+
+# Block everything by default
+iptables -j INPUT -i eth0 -j DROP
+iptables -j INPUT -i eth1 -j DROP
+
+# NAT
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080
+iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8443
 
 iptables-save | sudo tee /etc/sysconfig/iptables
 service iptables restart
